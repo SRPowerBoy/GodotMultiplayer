@@ -1,0 +1,23 @@
+# Godot editor cache / imported assets
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# Collaboration plugin runtime data (per-machine, never shared)
+.collab_backup/
+.collabignore
+
+# Godot 4.4+ resource UIDs are regenerated per machine
+*.uid
+
+# Built distribution artifact (attach to a Release instead of committing)
+godot_collab_addon.zip
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.vscode/
+.idea/
