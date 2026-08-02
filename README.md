@@ -23,7 +23,7 @@ Tested against **Godot 4.4.1** and **Godot 4.7.1**.
 ## Use
 
 **Host:** open the *Session* tab, pick a name and port, click **Host Session**.
-You get an invite link (`godotcollab://192.168.1.20:8890/ABCD-4829`) and a code.
+You get an invite link (`godotcollab://192.0.2.10:8890/ABCD-4829`) and a code.
 
 **Join:** sessions on your network appear automatically under *Found nearby* —
 click **Use** and enter the code. Or paste an invite link, or type the IP by hand.

@@ -176,7 +176,7 @@ static func decode_payload(msg: Dictionary) -> PackedByteArray:
 
 # --- Invite links ---------------------------------------------------------
 # A single copy-paste token that carries everything a collaborator needs:
-#   godotcollab://192.168.1.20:8890/ABCD-4829
+#   godotcollab://192.0.2.10:8890/ABCD-4829
 
 static func make_invite(ip: String, port: int, code: String) -> String:
 	return "%s%s:%d/%s" % [INVITE_SCHEME, ip, port, code]
