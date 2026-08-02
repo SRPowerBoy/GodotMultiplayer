@@ -827,7 +827,10 @@ func _on_join_pressed() -> void:
 		"code": _join_code.text.strip_edges().to_upper(),
 	}
 	if _pending_join.ip == "":
+		# Put the cursor where the problem is, so the button never just
+		# "does nothing".
 		set_status("Enter the host's IP address first.")
+		_join_ip.grab_focus()
 		return
 	_join_warning.dialog_text = _dialog_text(
 		"You are about to join the session at %s." % _pending_join.ip,

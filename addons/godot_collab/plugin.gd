@@ -492,8 +492,22 @@ func _on_kicked(reason: String) -> void:
 # -- joining ---------------------------------------------------------------
 
 func _on_join_requested(ip: String, port: int, user_name: String, code: String) -> void:
-	if _mode != Mode.IDLE:
+	# The panel only offers a Join button while it believes we are disconnected,
+	# so getting here in another mode means the two disagree. Never return
+	# silently -- that turns the button into a dead control with no explanation.
+	if _mode == Mode.HOST:
+		_panel.set_status("You are hosting. End your session before joining another.")
+		_panel.show_notice("Already hosting",
+			"You are currently hosting a session on this computer.",
+			["Press End Session first, then join."],
+			"Nothing was changed.")
 		return
+	if _mode == Mode.CLIENT:
+		# Stale client state (an attempt that never finished). Recover and
+		# continue with what the user actually asked for.
+		_log("Join requested while still in CLIENT mode - clearing stale session.")
+		_leaving = true
+		_teardown()
 	if user_name == "":
 		user_name = "Guest"
 	if ip == "":
