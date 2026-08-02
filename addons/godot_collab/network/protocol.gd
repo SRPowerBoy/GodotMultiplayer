@@ -71,6 +71,11 @@ const ROLE_VIEWER := "viewer"
 # --- Timing (ms) ----------------------------------------------------------
 const HEARTBEAT_INTERVAL := 3000    # how often each side sends a ping
 const CONNECTION_TIMEOUT := 12000   # drop a peer we have not heard from in this long
+## How long to wait for the initial TCP connect + handshake before giving up.
+## Without this the OS decides, which on Windows can mean 20+ seconds of an
+## unexplained "Connecting..." with no way to tell a slow network from a wrong
+## address.
+const CONNECT_TIMEOUT := 8000
 ## A primary claim is released automatically after this long with no actual
 ## edits, so merely having a file open never locks it away from everyone else.
 const CLAIM_IDLE_RELEASE := 45000

@@ -6,6 +6,7 @@ signal opened()
 signal closed()
 signal welcomed(id: int, role: String, color: String, roster: Array)
 signal rejected(reason: String)
+signal connect_failed(reason: String)
 signal roster_updated(roster: Array)
 signal chat(name: String, color: String, text: String)
 signal system(text: String)
@@ -46,6 +47,8 @@ var _active := false
 var _last_ping := 0
 var _last_heard := 0
 var _timed_out := false
+var _connect_started := 0
+var _target := ""
 var _ping_sent_at := 0
 
 func connect_to_host(ip: String, port: int, user_name: String, code: String) -> String:
@@ -62,7 +65,9 @@ func connect_to_host(ip: String, port: int, user_name: String, code: String) -> 
 	was_kicked = false
 	_last_ping = Time.get_ticks_msec()
 	_last_heard = Time.get_ticks_msec()
-	var url := "ws://%s:%d" % [ip, port]
+	_connect_started = Time.get_ticks_msec()
+	_target = "%s:%d" % [ip, port]
+	var url := "ws://" + _target
 	var err := _ws.connect_to_url(url)
 	if err != OK:
 		_active = false
@@ -90,6 +95,26 @@ func poll(_delta: float) -> void:
 		return
 	_ws.poll()
 	var st := _ws.get_ready_state()
+
+	# Give up if the connect or handshake never completes. Covers an unreachable
+	# host, a wrong port, a firewall silently dropping packets, and a host that
+	# accepts the socket but never answers.
+	if not connected and st != WebSocketPeer.STATE_CLOSED:
+		if Time.get_ticks_msec() - _connect_started > Protocol.CONNECT_TIMEOUT:
+			var why := ""
+			if st == WebSocketPeer.STATE_OPEN:
+				# Socket opened, so something is there -- it just never replied.
+				why = ("Reached the host, but it never answered. Check that the "
+					+ "other side is actually hosting a session.")
+			else:
+				why = ("Could not reach %s. Nothing is listening on that address "
+					+ "and port, or a firewall is blocking it.") % _target
+			_active = false
+			_ws.close(1001, "connect timeout")
+			log.emit("Connection attempt timed out.")
+			connect_failed.emit(why)
+			return
+
 	# Send our handshake as soon as the socket opens.
 	if st == WebSocketPeer.STATE_OPEN and not _hello_sent:
 		_hello_sent = true

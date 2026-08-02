@@ -129,6 +129,7 @@ func _enter_tree() -> void:
 	_client.closed.connect(_on_client_closed)
 	_client.welcomed.connect(_on_client_welcomed)
 	_client.rejected.connect(_on_client_rejected)
+	_client.connect_failed.connect(_on_connect_failed)
 	_client.roster_updated.connect(_on_client_roster)
 	_client.chat.connect(func(n, c, t):
 		SessionLog.chat(str(n), str(c), str(t))
@@ -687,6 +688,21 @@ func _on_client_file_update(path: String, bytes: PackedByteArray, version: int) 
 func _on_client_file_rejected(path: String, your_version: int, host_version: int) -> void:
 	_panel.chat_system("Your change to %s was rejected (you had v%d, host has v%d). Reloading the latest." %
 		[path.get_file(), your_version, host_version])
+
+## The connect attempt never completed. Say why, and say it where it will be
+## seen -- a status line on an unfocused tab is not enough after an 8s wait.
+func _on_connect_failed(reason: String) -> void:
+	_leaving = true          # a failed first connect must not start retrying
+	_panel.set_status("Could not connect.")
+	_panel.show_notice("Could not connect", reason,
+		[
+			"Check the host has clicked Host Session and is still running.",
+			"Check the IP and port match what the host is showing.",
+			"Over the internet the host needs their EXTERNAL address, not a "
+			+ "192.168.x or 10.x one.",
+		],
+		"Nothing on this computer was changed.")
+	_teardown()
 
 func _on_client_rejected(reason: String) -> void:
 	_panel.set_status("Rejected: " + reason)
