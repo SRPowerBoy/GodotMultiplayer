@@ -1223,34 +1223,89 @@ func _on_self_test() -> void:
 	_run_self_test()
 
 func _run_self_test() -> void:
+	# Walks the WHOLE join sequence, not just the handshake, and reports which
+	# step fails. "Joining does not work" is otherwise impossible to narrow down
+	# without two machines.
+	var steps: Array = []
 	var port := 20000 + (randi() % 20000)
+
 	var host := HostServer.new()
 	var err := host.start(port, "SelfTestHost", "SELF-TEST")
+	steps.append(["Host starts listening", err == "", err])
 	if err != "":
-		_panel.set_status("Self-test FAILED: host could not start (%s)" % err)
+		_report_self_test(steps)
 		return
+
 	var client := ClientConnection.new()
-	var got := {"welcomed": false, "rejected": ""}
-	client.welcomed.connect(func(_id, _role, _color, _roster): got.welcomed = true)
+	var got := {
+		"welcomed": false, "rejected": "", "failed": "",
+		"manifest": -1, "snapshot": false, "files": 0, "done": -1,
+	}
+	client.welcomed.connect(func(_i, _r, _c, _ro): got.welcomed = true)
 	client.rejected.connect(func(r): got.rejected = r)
+	client.connect_failed.connect(func(r): got.failed = r)
+	client.manifest.connect(func(paths, _h):
+		got.manifest = paths.size()
+		# Answer exactly as the review dialog would.
+		client.send({"type": Protocol.T_SNAPSHOT_ACCEPT}))
+	client.snapshot_begin.connect(func(): got.snapshot = true)
+	client.file_update.connect(func(_p, _b, _v): got.files += 1)
+	client.snapshot_end.connect(func(total): got.done = total)
+
+	# Host side: mirror what the real session does on join.
+	host.peer_joined.connect(func(u):
+		var paths := _files.collect_all() if _files else []
+		host.send_to(int(u.id), {"type": Protocol.T_MANIFEST,
+			"paths": paths, "hashes": _files.hash_manifest() if _files else {}}))
+	host.snapshot_accepted.connect(func(uid):
+		host.send_to(uid, {"type": Protocol.T_SNAPSHOT_BEGIN})
+		host.send_to(uid, {"type": Protocol.T_SNAPSHOT_END, "total": 0}))
+
 	client.connect_to_host("127.0.0.1", port, "SelfTestClient", "SELF-TEST")
 
-	# Pump both ends for up to ~3 seconds of editor frames.
-	var deadline := Time.get_ticks_msec() + 3000
-	while Time.get_ticks_msec() < deadline and not got.welcomed and got.rejected == "":
+	var deadline := Time.get_ticks_msec() + 12000
+	while Time.get_ticks_msec() < deadline:
 		host.poll(0.016)
 		client.poll(0.016)
+		if got.done >= 0 or got.rejected != "" or got.failed != "":
+			break
 		await get_tree().process_frame
+
+	steps.append(["Client reaches the host", got.failed == "", got.failed])
+	steps.append(["Handshake accepted", got.welcomed,
+		got.rejected if got.rejected != "" else "no welcome received"])
+	steps.append(["Project manifest sent", got.manifest >= 0,
+		"host never sent the file list"])
+	steps.append(["Transfer starts after accept", got.snapshot,
+		"host did not begin sending after the client accepted"])
+	steps.append(["Transfer completes", got.done >= 0,
+		"snapshot never finished"])
 
 	client.disconnect_from_host()
 	host.stop()
+	_report_self_test(steps)
 
-	if got.welcomed:
-		_panel.set_status("✅ Self-test PASSED — host + client handshake works on this machine.")
-		_panel.chat_system("Self-test passed: loopback host/client handshake OK.")
+## steps: [[label, ok, failure_detail], ...]
+func _report_self_test(steps: Array) -> void:
+	var bullets: Array = []
+	var failed := ""
+	for st in steps:
+		var mark := "OK  " if st[1] else "FAIL"
+		bullets.append("%s  %s" % [mark, st[0]])
+		if not st[1] and failed == "":
+			failed = "%s - %s" % [st[0], st[2]]
+	if failed == "":
+		_panel.set_status("Self-test passed - joining works on this machine.")
+		_panel.show_notice("Self-test passed",
+			"Every step of the join sequence completed locally.", bullets,
+			"If joining still fails between two machines, the problem is the "
+			+ "network path (address, port, or firewall) rather than the plugin.")
 	else:
-		_panel.set_status("❌ Self-test FAILED — handshake did not complete (%s)." %
-			(got.rejected if got.rejected != "" else "timeout"))
+		_panel.set_status("Self-test failed at: %s" % failed)
+		_panel.show_notice("Self-test failed",
+			"The join sequence stopped at: %s" % failed, bullets,
+			"This ran entirely on this computer, so a failure here is the "
+			+ "plugin or this Godot install - not your network.")
 
 func _generate_code() -> String:
 	var letters := "ABCDEFGHJKLMNPQRSTUVWXYZ"
