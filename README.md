@@ -76,23 +76,19 @@ your files would be overwritten. Nothing transfers until you accept.
 
 ---
 
-## Tests
+## Testing
 
-```bash
-godot --headless --path . --script res://_test_net.gd
-godot --headless --path . --script res://_test_filesync.gd
-godot --headless --path . --script res://_test_claims.gd
-godot --headless --path . --script res://_test_ui.gd
-godot --headless --path . --script res://_test_discovery.gd
-godot --headless --path . --script res://_test_resilience.gd
-godot --headless --path . --script res://_test_joinflow.gd
-```
+This repository contains the addon only. Development happens in a separate
+throwaway Godot project that also holds the test harness, which is why you will
+not find a `project.godot` here — drop `addons/godot_collab/` into any project
+and it works.
 
-252 checks covering the protocol, file sync, ownership, UI gating, LAN discovery,
-resilience (reconnect, rate limits, path traversal, fuzzing) and the join handshake.
-
-`_test_twoproc_host.gd` / `_test_twoproc_client.gd` run a host and client as two
-separate Godot processes over a real socket.
+The addon is verified by **252 headless checks** across Godot 4.4.1 and 4.7.1,
+covering the wire protocol, file sync, ownership and claims, UI gating on every
+destructive action, LAN discovery, resilience (reconnect backoff, rate limiting,
+path traversal, malformed-message fuzzing) and the full join handshake — plus an
+integration test that runs a host and a client as **two separate Godot processes
+over a real socket**.
 
 ## Layout
 

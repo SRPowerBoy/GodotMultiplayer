@@ -14,6 +14,11 @@ export_presets.cfg
 # Built distribution artifact (attach to a Release instead of committing)
 godot_collab_addon.zip
 
+# Local development harness: the throwaway Godot project used to run the addon
+# and its test suites. Not part of what users install.
+project.godot
+_test_*.gd
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
