@@ -176,6 +176,7 @@ func _process(delta: float) -> void:
 			_tick_delete_prompt(delta)
 			_tick_stats(delta)
 			_discovery.poll_broadcast()   # advertise this session on the LAN
+			_ports.poll(delta)            # keep the UPnP lease alive
 		Mode.CLIENT:
 			_tick_reconnect(delta)
 			_tick_delete_prompt(delta)
@@ -973,6 +974,11 @@ func _teardown() -> void:
 		_discovery.stop_broadcasting()
 	if _ports:
 		_ports.unmap()
+		if _ports.left_open and _panel:
+			_panel.chat_system("Note: your router would not remove the port "
+				+ "forwarding for port %d and does not support expiring leases. "
+				% _host_port
+				+ "Remove it from your router's UPnP list if you want it closed.")
 	_mode = Mode.IDLE
 	_my_id = -1
 	_roster.clear()

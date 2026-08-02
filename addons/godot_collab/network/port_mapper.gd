@@ -9,10 +9,18 @@ extends RefCounted
 
 signal finished(success: bool, external_ip: String, message: String)
 
+## Mappings are leased so they expire on their own if the router will not let
+## us delete them. Refreshed well before expiry while a session is running.
+const LEASE_SECONDS := 3600
+const REFRESH_AFTER := 2700.0     # renew at 45 minutes
+const MAPPING_NAME := "GodotCollab"
+
 var _thread: Thread
 var _upnp: UPNP
 var _port := 0
 var _mapped := false
+var _permanent := false           # router only supports non-expiring mappings
+var _since_refresh := 0.0
 
 func is_mapped() -> bool:
 	return _mapped
@@ -36,7 +44,18 @@ func _worker() -> void:
 		call_deferred("_done", false, "", "Router does not support UPnP forwarding.")
 		return
 	# TCP only: the collaboration socket is WebSocket over TCP.
-	var res := _upnp.add_port_mapping(_port, _port, "GodotCollab", "TCP", 0)
+	#
+	# Always ask for a LEASED mapping rather than a permanent one. Plenty of
+	# routers happily accept AddPortMapping but reject DeletePortMapping, and a
+	# permanent mapping we cannot delete would leave the port open forever. A
+	# lease expires on its own, so the worst case is self-healing. We refresh it
+	# while the session is alive (see poll()).
+	var res := _upnp.add_port_mapping(_port, _port, MAPPING_NAME, "TCP", LEASE_SECONDS)
+	if res == UPNP.UPNP_RESULT_ONLY_PERMANENT_LEASE_SUPPORTED:
+		# Older routers only support permanent mappings; take it, but remember
+		# that expiry will not save us if delete also fails.
+		_permanent = true
+		res = _upnp.add_port_mapping(_port, _port, MAPPING_NAME, "TCP", 0)
 	if res != UPNP.UPNP_RESULT_SUCCESS:
 		call_deferred("_done", false, "", "Router refused the port mapping (code %d)." % res)
 		return
@@ -70,9 +89,29 @@ func unmap() -> void:
 		_thread = null
 	_release_mapping()
 
+## Renew the lease so a long session does not lose its forwarding. Cheap and
+## safe to call every frame; it only acts once the interval has elapsed.
+func poll(delta: float) -> void:
+	if not _mapped or _permanent or _upnp == null:
+		return
+	_since_refresh += delta
+	if _since_refresh < REFRESH_AFTER:
+		return
+	_since_refresh = 0.0
+	_upnp.add_port_mapping(_port, _port, MAPPING_NAME, "TCP", LEASE_SECONDS)
+
+## True when the mapping could not be removed and is not on a lease -- the only
+## case where something is left open after the session ends.
+var left_open := false
+
 func _release_mapping() -> void:
+	left_open = false
 	if _upnp != null and _mapped:
-		_upnp.delete_port_mapping(_port, "TCP")
+		var res := _upnp.delete_port_mapping(_port, "TCP")
+		if res != UPNP.UPNP_RESULT_SUCCESS:
+			# Some routers accept AddPortMapping but refuse to delete. The lease
+			# will clear it; a permanent mapping will not, so say so.
+			left_open = _permanent
 	_mapped = false
 	_upnp = null
 	_unmap_wanted = false
